@@ -1,0 +1,26 @@
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SetPilot — Configure MIDI Control</title>
+<link rel="stylesheet" href="/vendor/fa/css/all.min.css" />
+<link rel="stylesheet" href="/style.css" />
+
+<div class="settings">
+  <header class="settings-head">
+    <div class="brand"><i class="fa-solid fa-sliders brand-icon"></i> MIDI Control</div>
+    <span class="status">
+      <span class="lamp" id="midi-lamp"></span>
+      <span class="status-text" id="midi-status">Looking for devices…</span>
+    </span>
+  </header>
+
+  <section class="card">
+    <ul class="midi-list" id="midi-list"></ul>
+    <p class="midi-hint">
+      Hit <b>Learn</b>, then press a button or pedal on your controller. Mappings
+      save automatically and keep working while SetPilot is open — you can close
+      this window.
+    </p>
+  </section>
+</div>
+
+<script type="module" src="/midi.js"></script>

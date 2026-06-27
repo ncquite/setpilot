@@ -1,0 +1,105 @@
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>SetPilot</title>
+<link rel="stylesheet" href="/vendor/fa/css/all.min.css" />
+<link rel="stylesheet" href="/style.css" />
+
+<div class="app">
+  <header class="topbar">
+    <div class="brand"><i class="fa-solid fa-jet-fighter-up brand-icon"></i>SetPilot</div>
+    <div class="status">
+      <span class="lamp" id="link-lamp"></span>
+      <span class="status-text" id="link-label">Connecting…</span>
+      <span class="bpm"><b id="bpm">—</b> BPM</span>
+      <button class="icon-btn" id="remote-btn" title="Phone / tablet remote"><i class="fa-solid fa-wifi"></i></button>
+    </div>
+  </header>
+
+  <div class="remote-bar" id="remote-bar"></div>
+
+  <!-- Now playing -->
+  <section class="np card">
+    <div class="np-top">
+      <span class="eyebrow live-dot" id="now-tag">Ready</span>
+      <span class="endmode" id="endmode" hidden></span>
+    </div>
+
+    <h1 class="now-title" id="now-title">Ready</h1>
+
+    <div class="progress">
+      <div class="track"><div class="fill" id="gs-fill"></div></div>
+      <div class="time">
+        <span id="elapsed">0:00</span>
+        <span id="remaining" class="countdown">—</span>
+        <span id="length" class="muted">—</span>
+      </div>
+    </div>
+
+    <div class="sections" id="sections"></div>
+
+    <div class="up-next" id="up-next">
+      <span class="eyebrow">Up Next</span>
+      <span id="next-title"></span>
+    </div>
+
+    <div class="controls">
+      <button class="ctlbtn" id="stop"><i class="fa-solid fa-stop"></i> Stop</button>
+      <button class="ctlbtn danger" id="panic"><i class="fa-solid fa-triangle-exclamation"></i> Panic</button>
+    </div>
+  </section>
+
+  <!-- Set list -->
+  <section class="card">
+    <div class="card-head">
+      <h2>Set List</h2>
+      <div class="head-right">
+        <span class="meta" id="set-total">—</span>
+        <span class="meta accent" id="set-remaining"></span>
+        <button class="icon-btn" id="lock-btn" title="Unlock to reorder"><i class="fa-solid fa-lock"></i></button>
+      </div>
+    </div>
+    <ol class="list locked" id="setlist"></ol>
+    <div class="actions">
+      <button id="save" title="Save the current set list"><i class="fa-solid fa-floppy-disk"></i> Save</button>
+      <div class="select-wrap" title="Load a saved set list">
+        <i class="fa-solid fa-folder-open"></i>
+        <select id="load-select"><option value="">Load…</option></select>
+      </div>
+      <button id="export" title="Export the set list to a .txt file"><i class="fa-solid fa-download"></i> Export</button>
+    </div>
+  </section>
+
+  <!-- Songs -->
+  <section class="card">
+    <div class="card-head">
+      <h2>Songs</h2>
+      <div class="head-right">
+        <span class="meta" id="full-count"></span>
+        <button class="icon-btn" id="songs-toggle" title="Collapse"><i class="fa-solid fa-chevron-up"></i></button>
+      </div>
+    </div>
+    <div class="collapsible" id="songs-body">
+      <div class="search-wrap">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input id="search" placeholder="Search songs…" autocomplete="off" />
+      </div>
+      <ul class="list" id="library"></ul>
+    </div>
+  </section>
+</div>
+
+<div class="modal-backdrop" id="modal">
+  <div class="modal-box">
+    <h3>Save set list</h3>
+    <input id="modal-input" placeholder="Set list name…" autocomplete="off" />
+    <div class="modal-actions">
+      <button id="modal-cancel" class="mbtn">Cancel</button>
+      <button id="modal-ok" class="mbtn primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/vendor/sortable/Sortable.min.js"></script>
+<script type="module" src="/app.js"></script>

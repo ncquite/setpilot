@@ -1,0 +1,78 @@
+{
+  "name": "setpilot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A free, gig-ready setlist manager that flies Ableton Live arrangement playback over OSC.",
+  "license": "AGPL-3.0-or-later",
+  "author": "SetPilot",
+  "type": "module",
+  "main": "electron/main.js",
+  "scripts": {
+    "app": "electron electron/main.js",
+    "start": "node src/server.js",
+    "icons": "bash build/generate-icons.sh",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win",
+    "dist:all": "electron-builder --mac --win"
+  },
+  "dependencies": {
+    "osc": "^2.4.5",
+    "ws": "^8.21.0"
+  },
+  "devDependencies": {
+    "@fontsource/inter": "^5.2.8",
+    "@fontsource/space-grotesk": "^5.2.10",
+    "@fortawesome/fontawesome-free": "^7.2.0",
+    "electron": "^42.4.1",
+    "electron-builder": "^25.1.8",
+    "sortablejs": "^1.15.7"
+  },
+  "build": {
+    "appId": "com.setpilot.app",
+    "productName": "SetPilot",
+    "copyright": "© 2026 SetPilot",
+    "npmRebuild": false,
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "electron/**/*",
+      "public/**/*",
+      "package.json",
+      "!**/node_modules/serialport/**",
+      "!**/node_modules/@serialport/**"
+    ],
+    "extraResources": [
+      {
+        "from": "remote-script",
+        "to": "remote-script",
+        "filter": ["**/*", "!**/.DS_Store"]
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.music",
+      "icon": "build/icon.icns",
+      "identity": null,
+      "target": [
+        { "target": "dmg", "arch": ["arm64", "x64"] },
+        { "target": "zip", "arch": ["arm64", "x64"] }
+      ]
+    },
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}
