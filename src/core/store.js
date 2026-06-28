@@ -7,16 +7,25 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const SETLISTS_DIR = join(HERE, "..", "..", "setlists");
+
+// Where saved setlists live. The Electron shell sets SETPILOT_DATA_DIR to a
+// writable per-user location (app.getPath("userData")) — required because the
+// packaged app's own files live inside a read-only asar archive. Plain
+// `npm start` dev runs fall back to the repo's setlists/ folder.
+function setlistsDir() {
+  return process.env.SETPILOT_DATA_DIR
+    ? join(process.env.SETPILOT_DATA_DIR, "setlists")
+    : join(HERE, "..", "..", "setlists");
+}
 
 function fileFor(name) {
   const safe = name.replace(/[^a-z0-9-_ ]/gi, "").trim() || "untitled";
-  return join(SETLISTS_DIR, `${safe}.json`);
+  return join(setlistsDir(), `${safe}.json`);
 }
 
 /** @param {string} name @param {import("./songs.js").Song[]} orderedSongs */
 export async function saveSetlist(name, orderedSongs) {
-  await mkdir(SETLISTS_DIR, { recursive: true });
+  await mkdir(setlistsDir(), { recursive: true });
   const data = {
     name,
     savedAt: new Date().toISOString(),
@@ -48,7 +57,7 @@ export async function loadSetlist(name, currentSongs) {
 /** List saved setlist names. */
 export async function listSetlists() {
   try {
-    const files = await readdir(SETLISTS_DIR);
+    const files = await readdir(setlistsDir());
     return files.filter((f) => f.endsWith(".json")).map((f) => f.replace(/\.json$/, ""));
   } catch {
     return [];

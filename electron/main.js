@@ -114,6 +114,11 @@ function buildMenu() {
 }
 
 async function createWindow() {
+  // Saved setlists must go somewhere writable: the packaged app's own files live
+  // in a read-only asar, so point the store at the per-user data dir before the
+  // server (and its setlist store) boots. store.js reads this env var.
+  process.env.SETPILOT_DATA_DIR = app.getPath("userData");
+
   const { url } = await startServer();
   serverUrl = url; // used to open the MIDI Control window
 
