@@ -46,6 +46,7 @@
 
 html, body {
   margin: 0;
+  height: 100%;
   background: var(--bg);
   color: var(--text);
   font-family: var(--ui);
@@ -166,9 +167,9 @@ body.is-looping .live-dot::before { background: var(--accent); animation: pulse 
 .sections {
   display: flex; gap: 6px; margin-top: 12px;
   overflow-x: auto; scrollbar-width: none; padding-bottom: 2px;
+  min-height: 28px; /* reserve one chip-row so songs without sections don't shift the layout */
 }
 .sections::-webkit-scrollbar { display: none; }
-.sections.hidden { display: none; }
 .sections .chip {
   flex: 0 0 auto; cursor: pointer; white-space: nowrap;
   padding: 6px 11px; border-radius: 999px;
@@ -199,12 +200,38 @@ body.is-looping .live-dot::before { background: var(--accent); animation: pulse 
 .up-next {
   display: flex; align-items: baseline; gap: 8px; margin-top: 10px;
   font: 500 13px/1.2 var(--ui); color: var(--muted);
+  min-height: 16px; /* one line, so "End of set" (no song name) doesn't shrink the card */
 }
 .up-next #next-title { color: var(--text); }
-.up-next:empty, .up-next.hidden { display: none; }
+/* Keep the line reserved (hidden, not removed) so the last song doesn't shift the layout. */
+.up-next.hidden { visibility: hidden; }
+.up-next.end-of-set .eyebrow { color: var(--accent); }
 
 .meta.accent { color: var(--accent); }
 #set-remaining:empty { display: none; }
+
+/* Play On — a big, accent button that appears only while a loop is vamping, so
+   it's obvious you can break out and progress. Visibility follows body.is-looping
+   (set in render()); it pulses on the same tempo-synced --vamp-period as the chip. */
+/* A third button in the controls row, shown only while looping. Sitting in the
+   row (not its own appearing/disappearing row) keeps the card height constant. */
+.exitloop-btn {
+  display: none;
+  flex: 1; padding: 11px;
+  font: 700 14px/1 var(--display); letter-spacing: 0.01em;
+  align-items: center; justify-content: center; gap: 8px;
+  color: var(--accent-ink); background: var(--accent);
+  border: 1px solid transparent; border-radius: 12px; cursor: pointer;
+  animation: exitloop-pulse var(--vamp-period, 1s) ease-in-out infinite;
+}
+body.is-looping .exitloop-btn { display: inline-flex; }
+.exitloop-btn:active { transform: scale(0.98); }
+.exitloop-btn i { font-size: 13px; }
+@keyframes exitloop-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.5); }
+  70%  { box-shadow: 0 0 0 10px rgba(52, 211, 153, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); }
+}
 
 .controls { display: flex; gap: 10px; margin-top: 14px; }
 .ctlbtn {
@@ -314,7 +341,22 @@ body.is-looping .live-dot::before { background: var(--accent); animation: pulse 
 #search:focus { outline: none; border-color: var(--accent); }
 #search::placeholder { color: var(--faint); }
 
-.actions { display: flex; gap: 8px; margin-top: 12px; }
+/* Editor view — a separate "page" that replaces the playback view, so the main
+   window stays compact for shows and grows only while editing, then shrinks back.
+   It lives inside .app, so the window auto-resizes to fit it (and back). */
+#playback { display: flex; flex-direction: column; gap: 14px; } /* match .app's card gap */
+.editor { display: none; }
+body.editor-open #playback { display: none; }
+body.editor-open .editor { display: block; animation: editor-in 0.2s ease; }
+.editor-head { margin-bottom: 16px; }
+.editor > .card { margin-bottom: 14px; }
+.editor > .card:last-child { margin-bottom: 0; }
+/* Cap the long lists so the editor stays a sane height; they scroll internally. */
+.editor #setlist-edit { max-height: none; } /* whole set shows; the editor scrolls if long */
+.editor #library { max-height: 300px; } /* keep search results beside the search box */
+@keyframes editor-in { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+
+.actions { display: flex; gap: 8px; margin-top: 12px; align-items: stretch; }
 .actions button, .select-wrap {
   font: 600 13px/1 var(--ui);
   background: var(--card-2); color: var(--text);
@@ -325,9 +367,9 @@ body.is-looping .live-dot::before { background: var(--accent); animation: pulse 
 .actions button { padding: 11px 14px; }
 .actions button:hover, .select-wrap:hover { border-color: var(--muted); }
 .actions button i { color: var(--muted); }
-.select-wrap { flex: 1; padding-left: 32px; }
+.select-wrap { flex: 1; padding-left: 32px; padding-right: 10px; }
 .select-wrap select {
-  width: 100%; padding: 11px 8px 11px 0; background: transparent;
+  width: 100%; padding: 11px 0; background: transparent;
   border: none; color: var(--text); font: 600 13px/1 var(--ui); cursor: pointer;
 }
 .select-wrap select option { background: var(--card); }
@@ -357,6 +399,8 @@ body.is-looping .live-dot::before { background: var(--accent); animation: pulse 
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 }
 .modal-box h3 { margin: 0 0 14px; font: 700 16px/1 var(--display); }
+.modal-box #modal-msg { margin: 0 0 16px; font: 500 14px/1.45 var(--ui); color: var(--muted); }
+.modal-box #modal-msg[hidden] { display: none; }
 .modal-box input {
   width: 100%; padding: 11px 12px; margin-bottom: 16px;
   background: var(--card-2); border: 1px solid var(--border);
@@ -370,6 +414,7 @@ body.is-looping .live-dot::before { background: var(--accent); animation: pulse 
   background: var(--card-2); border: 1px solid var(--border); color: var(--text);
 }
 .mbtn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.mbtn.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
 
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 

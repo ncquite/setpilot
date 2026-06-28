@@ -17,6 +17,7 @@
 
   <div class="remote-bar" id="remote-bar"></div>
 
+  <div id="playback">
   <!-- Now playing -->
   <section class="np card">
     <div class="np-top">
@@ -43,54 +44,67 @@
     </div>
 
     <div class="controls">
+      <button class="exitloop-btn" id="exit-loop"><i class="fa-solid fa-forward"></i> Exit Loop</button>
       <button class="ctlbtn" id="stop"><i class="fa-solid fa-stop"></i> Stop</button>
       <button class="ctlbtn danger" id="panic"><i class="fa-solid fa-triangle-exclamation"></i> Panic</button>
     </div>
   </section>
 
-  <!-- Set list -->
-  <section class="card">
+  <!-- Set list (playback view — tap to play) -->
+  <section class="card" id="setlist-card">
     <div class="card-head">
       <h2>Set List</h2>
       <div class="head-right">
         <span class="meta" id="set-total">—</span>
         <span class="meta accent" id="set-remaining"></span>
-        <button class="icon-btn" id="lock-btn" title="Unlock to reorder"><i class="fa-solid fa-lock"></i></button>
+        <button class="icon-btn" id="edit-btn" title="Edit set list"><i class="fa-solid fa-pen-to-square"></i></button>
       </div>
     </div>
     <ol class="list locked" id="setlist"></ol>
-    <div class="actions">
-      <button id="save" title="Save the current set list"><i class="fa-solid fa-floppy-disk"></i> Save</button>
-      <div class="select-wrap" title="Load a saved set list">
-        <i class="fa-solid fa-folder-open"></i>
-        <select id="load-select"><option value="">Load…</option></select>
-      </div>
-      <button id="export" title="Export the set list to a .txt file"><i class="fa-solid fa-download"></i> Export</button>
-    </div>
   </section>
+  </div><!-- /#playback -->
 
-  <!-- Songs -->
-  <section class="card">
-    <div class="card-head">
-      <h2>Songs</h2>
-      <div class="head-right">
-        <span class="meta" id="full-count"></span>
-        <button class="icon-btn" id="songs-toggle" title="Collapse"><i class="fa-solid fa-chevron-up"></i></button>
-      </div>
+  <!-- Set list editor — slides over; the playback view stays untouched -->
+  <section class="editor" id="editor">
+    <div class="card-head editor-head">
+      <h2>Edit Set List</h2>
+      <button class="icon-btn" id="editor-close" title="Done editing"><i class="fa-solid fa-xmark"></i></button>
     </div>
-    <div class="collapsible" id="songs-body">
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Set List</h2>
+        <span class="meta" id="edit-total"></span>
+      </div>
+      <ol class="list" id="setlist-edit"></ol>
+      <div class="actions">
+        <button id="save" title="Save the current set list"><i class="fa-solid fa-floppy-disk"></i> Save</button>
+        <div class="select-wrap" title="Load a saved set list">
+          <i class="fa-solid fa-folder-open"></i>
+          <select id="load-select"><option value="">Load…</option></select>
+        </div>
+        <button id="delete-set" title="Delete the selected saved set list"><i class="fa-solid fa-trash"></i> Delete</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Add Songs</h2>
+        <span class="meta" id="full-count"></span>
+      </div>
       <div class="search-wrap">
         <i class="fa-solid fa-magnifying-glass"></i>
         <input id="search" placeholder="Search songs…" autocomplete="off" />
       </div>
       <ul class="list" id="library"></ul>
-    </div>
+    </section>
   </section>
 </div>
 
 <div class="modal-backdrop" id="modal">
   <div class="modal-box">
-    <h3>Save set list</h3>
+    <h3 id="modal-title">Save set list</h3>
+    <p id="modal-msg" hidden></p>
     <input id="modal-input" placeholder="Set list name…" autocomplete="off" />
     <div class="modal-actions">
       <button id="modal-cancel" class="mbtn">Cancel</button>

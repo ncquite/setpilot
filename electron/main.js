@@ -50,6 +50,9 @@ ipcMain.on("set-content-height", (event, height) => {
   const [width] = bw.getContentSize();
   const { height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
   const next = Math.min(Math.max(height, 120), screenHeight);
+  // The window fits its content (no dead space). The now-playing card is a fixed
+  // height per song and the set list scrolls internally, so this only changes on
+  // real transitions (start/stop, opening the editor) — not when clicking songs.
   if (Math.abs(next - bw.getContentSize()[1]) > 1) bw.setContentSize(width, next, false);
 });
 
@@ -130,7 +133,7 @@ async function createWindow() {
 
   win = new BrowserWindow({
     width: 460,
-    height: 700, // starting height; the window auto-fits to content after load
+    height: 700, // starting height; the window fits to content after load
     minWidth: 460, // fixed width — width can't be dragged
     maxWidth: 460,
     minHeight: 120,

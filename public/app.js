@@ -123,8 +123,25 @@ function render() {
     ? "Looping"
     : { idle: "Ready", playing: "Now Playing", paused: "Paused" }[snapshot.status] || "Ready";
   $("now-title").textContent = snapshot.current ? snapshot.current.name : "Ready";
-  $("next-title").textContent = snapshot.next ? snapshot.next.name : "";
-  $("up-next").classList.toggle("hidden", !snapshot.next);
+
+  // Up Next → the next song; "End of set" on the final song; reserved-but-hidden
+  // when idle (so the card height stays stable either way).
+  const upNext = $("up-next");
+  const upEyebrow = upNext.querySelector(".eyebrow");
+  if (snapshot.next) {
+    upEyebrow.textContent = "Up Next";
+    $("next-title").textContent = snapshot.next.name;
+    upNext.classList.remove("hidden", "end-of-set");
+  } else if (snapshot.current) {
+    upEyebrow.textContent = "End of set";
+    $("next-title").textContent = "";
+    upNext.classList.remove("hidden");
+    upNext.classList.add("end-of-set");
+  } else {
+    $("next-title").textContent = "";
+    upNext.classList.add("hidden");
+    upNext.classList.remove("end-of-set");
+  }
 
   // What happens at the end of this song — set in the Ableton file, not here.
   const end = $("endmode");
@@ -143,7 +160,7 @@ function render() {
 
   renderSections();
   renderProgress();
-  if (!dragging) renderSetlist(); // don't rebuild the list mid-drag
+  if (!dragging) { renderSetlist(); renderSetlistEdit(); } // don't rebuild mid-drag
   renderLibrary();
   renderRemote();
 }
@@ -240,33 +257,41 @@ function renderProgress() {
   $("set-remaining").textContent = setLeft != null ? `${fmt(setLeft)} left` : "";
 }
 
+// One set-list row. `editable` adds the drag grip and remove button (editor view);
+// without it the row is playback-only (tap to play). Either way, tapping plays.
+function buildRow(s, pos, editable) {
+  const li = document.createElement("li");
+  li.className = "row" + (pos === snapshot.currentPos ? " current" : "");
+  li.innerHTML = `
+    ${editable ? `<span class="grip" title="Drag to reorder"><i class="fa-solid fa-grip-vertical"></i></span>` : ""}
+    <span class="num">${pos + 1}</span>
+    <span class="name"></span>
+    <span class="badges">
+      ${s.loops ? `<i class="fa-solid fa-repeat" title="Has a loop"></i>` : ""}
+      ${s.continueAtEnd ? `<i class="fa-solid fa-forward" title="Continues into the next song"></i>` : ""}
+      ${s.parts ? `<span class="parts" title="${s.parts} section${s.parts > 1 ? "s" : ""}"><i class="fa-solid fa-list-ul"></i>${s.parts}</span>` : ""}
+    </span>
+    <span class="len">${fmt(s.lengthSeconds)}</span>
+    ${editable ? `<button class="ctl rm" title="Remove"><i class="fa-solid fa-xmark"></i></button>` : ""}`;
+  li.querySelector(".name").textContent = s.name;
+  if (editable) {
+    // Editor rows are for arranging only — reorder via the grip, remove via the X.
+    li.querySelector(".grip").onclick = (e) => e.stopPropagation();
+    li.querySelector(".rm").onclick = (e) => { e.stopPropagation(); removeAt(pos); };
+  } else {
+    // Playback rows: tap to play (the playback view has no drag, so no guard needed).
+    li.onclick = () => send("playPos", { pos });
+  }
+  return li;
+}
+
+// Playback view: tap to play, current song highlighted and kept in view.
 function renderSetlist() {
   const ol = $("setlist");
   ol.innerHTML = "";
   const list = snapshot.setlist;
   $("set-total").textContent = `${list.length} • ${fmt(snapshot.totalSeconds)}`;
-
-  list.forEach((s, pos) => {
-    const li = document.createElement("li");
-    li.className = "row" + (pos === snapshot.currentPos ? " current" : "");
-    li.innerHTML = `
-      <span class="grip" title="Drag to reorder"><i class="fa-solid fa-grip-vertical"></i></span>
-      <span class="num">${pos + 1}</span>
-      <span class="name"></span>
-      <span class="badges">
-        ${s.loops ? `<i class="fa-solid fa-repeat" title="Has a loop"></i>` : ""}
-        ${s.continueAtEnd ? `<i class="fa-solid fa-forward" title="Continues into the next song"></i>` : ""}
-        ${s.parts ? `<span class="parts" title="${s.parts} section${s.parts > 1 ? "s" : ""}"><i class="fa-solid fa-list-ul"></i>${s.parts}</span>` : ""}
-      </span>
-      <span class="len">${fmt(s.lengthSeconds)}</span>
-      <button class="ctl rm" title="Remove"><i class="fa-solid fa-xmark"></i></button>`;
-    li.querySelector(".name").textContent = s.name;
-    // Tap the row to play — but not right after a drag, and never from the grip.
-    li.onclick = () => { if (!justDragged) send("playPos", { pos }); };
-    li.querySelector(".grip").onclick = (e) => e.stopPropagation();
-    li.querySelector(".rm").onclick = (e) => { e.stopPropagation(); removeAt(pos); };
-    ol.appendChild(li);
-  });
+  list.forEach((s, pos) => ol.appendChild(buildRow(s, pos, false)));
 
   // Keep the active song visible on long sets — but only when it changes, so we
   // don't fight the user scrolling through the list.
@@ -274,6 +299,15 @@ function renderSetlist() {
     lastScrolledPos = snapshot.currentPos;
     ol.querySelector(".row.current")?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }
+}
+
+// Editor view: draggable rows with remove buttons.
+function renderSetlistEdit() {
+  const ol = $("setlist-edit");
+  ol.innerHTML = "";
+  const list = snapshot.setlist;
+  $("edit-total").textContent = `${list.length} • ${fmt(snapshot.totalSeconds)}`;
+  list.forEach((s, pos) => ol.appendChild(buildRow(s, pos, true)));
 }
 
 function renderLibrary() {
@@ -327,32 +361,54 @@ function toast(message, isError = false) {
   toastTimer = setTimeout(() => (el.className = "toast"), 3000);
 }
 
-// In-app name dialog (Electron has no window.prompt). Resolves to a name or null.
-function askName(initial = "") {
+// In-app modal (Electron has no window.prompt/confirm). With an input it resolves
+// to a trimmed name (or null if cancelled); as a confirm it resolves true/false.
+function openModal({ title, message = "", withInput = false, initial = "", okLabel = "OK", danger = false }) {
   return new Promise((resolve) => {
     const m = $("modal");
     const input = $("modal-input");
+    const ok = $("modal-ok");
+    const msg = $("modal-msg");
+    $("modal-title").textContent = title;
+    msg.textContent = message;
+    msg.hidden = !message;
+    input.hidden = !withInput;
     input.value = initial;
+    ok.textContent = okLabel;
+    ok.classList.toggle("danger", danger);
+    ok.classList.toggle("primary", !danger);
     m.classList.add("show");
-    setTimeout(() => input.focus(), 30);
+    if (withInput) setTimeout(() => input.focus(), 30);
     const close = (val) => {
       m.classList.remove("show");
-      $("modal-ok").onclick = $("modal-cancel").onclick = input.onkeydown = m.onclick = null;
+      ok.onclick = $("modal-cancel").onclick = input.onkeydown = m.onclick = null;
       resolve(val);
     };
-    $("modal-ok").onclick = () => close(input.value.trim() || null);
-    $("modal-cancel").onclick = () => close(null);
+    const confirm = () => close(withInput ? input.value.trim() || null : true);
+    const cancel = () => close(withInput ? null : false);
+    ok.onclick = confirm;
+    $("modal-cancel").onclick = cancel;
     input.onkeydown = (e) => {
-      if (e.key === "Enter") close(input.value.trim() || null);
-      else if (e.key === "Escape") close(null);
+      if (e.key === "Enter") confirm();
+      else if (e.key === "Escape") cancel();
     };
-    m.onclick = (e) => { if (e.target === m) close(null); };
+    m.onclick = (e) => { if (e.target === m) cancel(); };
   });
 }
+const askName = (initial = "") =>
+  openModal({ title: "Save set list", withInput: true, initial, okLabel: "Save" });
+const confirmDelete = (name) =>
+  openModal({
+    title: "Delete set list?",
+    message: `“${name}” will be permanently removed. This can’t be undone.`,
+    okLabel: "Delete",
+    danger: true,
+  });
 
 // ---- Controls ----
 $("stop").onclick = () => send("stop");
 $("panic").onclick = () => send("panic");
+$("exit-loop").onclick = () => send("releaseLoop");
 $("remote-btn").onclick = () => send("setRemote", { on: !remoteEnabled });
 $("search").oninput = renderLibrary;
 
@@ -366,20 +422,16 @@ $("save").onclick = async () => {
 $("load-select").onchange = (e) => {
   if (e.target.value) send("load", { name: e.target.value });
 };
-$("export").onclick = () => {
-  if (!snapshot?.setlist?.length) return toast("Nothing to export");
-  const lines = snapshot.setlist.map((s, i) => `${i + 1}. ${s.name}  (${fmt(s.lengthSeconds)})`);
-  const text = `SetPilot — Set List\n\n${lines.join("\n")}\n\nTotal: ${fmt(snapshot.totalSeconds)}\n`;
-  const url = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "setlist.txt";
-  a.click();
-  URL.revokeObjectURL(url);
+$("delete-set").onclick = async () => {
+  const name = $("load-select").value;
+  if (!name) return toast("Choose a saved set list to delete");
+  if (await confirmDelete(name)) {
+    send("deleteSetlist", { name });
+    toast(`Deleted “${name}”`);
+  }
 };
-
-// Drag-to-reorder the set list — only from the grip handle, touch-friendly.
-const sortable = Sortable.create($("setlist"), {
+// Drag-to-reorder the editable list (editor view) — grip handle only, touch-friendly.
+Sortable.create($("setlist-edit"), {
   handle: ".grip",
   animation: 150,
   ghostClass: "row-ghost",
@@ -398,35 +450,10 @@ const sortable = Sortable.create($("setlist"), {
   },
 });
 
-// Lock / unlock reordering — default locked, so a show can't be rearranged by accident.
-let locked = localStorage.getItem("sp-locked") !== "false";
-function applyLock() {
-  $("setlist").classList.toggle("locked", locked);
-  $("lock-btn").classList.toggle("active", !locked);
-  $("lock-btn").innerHTML = `<i class="fa-solid fa-${locked ? "lock" : "lock-open"}"></i>`;
-  $("lock-btn").title = locked ? "Unlock to reorder" : "Lock reordering";
-  sortable.option("disabled", locked);
-}
-$("lock-btn").onclick = () => {
-  locked = !locked;
-  localStorage.setItem("sp-locked", String(locked));
-  applyLock();
-};
-applyLock();
-
-// Collapse / expand the Songs module to give the set list more room.
-let songsCollapsed = localStorage.getItem("sp-songs-collapsed") === "true";
-function applyCollapse() {
-  $("songs-body").classList.toggle("collapsed", songsCollapsed);
-  $("songs-toggle").innerHTML = `<i class="fa-solid fa-chevron-${songsCollapsed ? "down" : "up"}"></i>`;
-  $("songs-toggle").title = songsCollapsed ? "Expand" : "Collapse";
-}
-$("songs-toggle").onclick = () => {
-  songsCollapsed = !songsCollapsed;
-  localStorage.setItem("sp-songs-collapsed", String(songsCollapsed));
-  applyCollapse();
-};
-applyCollapse();
+// Editor — slides over the playback view. Editing/reordering/managing saved sets
+// all live here, keeping the main view focused on the show.
+$("edit-btn").onclick = () => document.body.classList.add("editor-open");
+$("editor-close").onclick = () => document.body.classList.remove("editor-open");
 
 // ---- Keep the screen awake during a show (tablets/phones) ----
 let wakeLock = null;
