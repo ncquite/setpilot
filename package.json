@@ -39,6 +39,14 @@
       "output": "dist",
       "buildResources": "build"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "AshHenbrey",
+        "repo": "setpilot",
+        "releaseType": "draft"
+      }
+    ],
     "files": [
       "src/**/*",
       "electron/**/*",

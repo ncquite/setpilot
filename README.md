@@ -10,6 +10,22 @@ moving any audio), and triggers / auto-advances playback over OSC. The control
 UI runs in the browser, so any phone or tablet on the same network becomes a
 remote — no extra paid apps.
 
+## Download
+
+Grab the latest build from the [**Releases**](https://github.com/AshHenbrey/setpilot/releases)
+page:
+
+- **macOS** — `SetPilot-<version>-mac-<arch>.dmg` (`arm64` for Apple Silicon,
+  `x64` for Intel).
+- **Windows** — `SetPilot-<version>-win-x64.exe` (NSIS installer).
+
+These builds are **unsigned** (SetPilot has no paid Developer ID / code-signing
+certificate yet), so your OS will warn you the first time:
+
+- **macOS** — right-click the app → **Open** (then **Open** again), or run
+  `xattr -dr com.apple.quarantine "/Applications/SetPilot.app"` once.
+- **Windows** — on the SmartScreen prompt click **More info → Run anyway**.
+
 ## How it talks to Ableton
 
 SetPilot drives Live from outside via a MIDI Remote Script that exposes Live's
@@ -99,8 +115,27 @@ Notes:
 - **macOS builds are unsigned** (no paid Developer ID). First launch: right-click →
   Open, or `xattr -dr com.apple.quarantine "SetPilot.app"`.
 - **Building the Windows installer from macOS needs [Wine](https://www.winehq.org/).**
-  The clean way to ship both platforms is a CI matrix (e.g. GitHub Actions running
-  `dist:mac` on macOS and `dist:win` on Windows).
+  In practice you don't have to — releases are built in CI (see below).
+
+### Releasing
+
+Releases are cut by [`.github/workflows/release.yml`](.github/workflows/release.yml),
+which builds on real macOS + Windows runners — no Wine, no local cross-compiling.
+
+1. Bump `version` in [package.json](package.json).
+2. Commit, then tag and push:
+   ```
+   git tag v1.0.1
+   git push origin v1.0.1
+   ```
+3. The workflow builds both platforms and gathers the installers into a
+   **draft** GitHub Release. Open it on the
+   [Releases](https://github.com/AshHenbrey/setpilot/releases) page, review the
+   auto-generated notes, and click **Publish**.
+
+The tag (`v*`) drives it; you can also run it manually from the **Actions** tab
+(*Run workflow*). It uses the built-in `GITHUB_TOKEN`, so there are no secrets to
+configure.
 
 ## Roadmap
 
