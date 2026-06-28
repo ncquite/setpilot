@@ -27,21 +27,45 @@ function getSourceDir() {
   return fileURLToPath(new URL("../remote-script/" + FOLDER_NAME, import.meta.url));
 }
 
-// Live's default Remote Scripts directory. null on unsupported platforms.
-function getDefaultRemoteScriptsDir() {
+// Candidate Remote Scripts directories, most-likely first. Empty on unsupported
+// platforms (Live runs only on macOS / Windows).
+function remoteScriptsCandidates() {
   const home = os.homedir();
   if (process.platform === "darwin") {
-    return path.join(home, "Music", "Ableton", "User Library", "Remote Scripts");
+    return [path.join(home, "Music", "Ableton", "User Library", "Remote Scripts")];
   }
   if (process.platform === "win32") {
-    return path.join(home, "Documents", "Ableton", "User Library", "Remote Scripts");
+    // Ableton's User Library lives under the user's Documents folder. On many
+    // Windows machines OneDrive "Known Folder Move" redirects Documents into
+    // OneDrive, so plain %USERPROFILE%\Documents no longer exists — probe the
+    // OneDrive roots too and let getDefaultRemoteScriptsDir() pick a real one.
+    const tail = path.join("Ableton", "User Library", "Remote Scripts");
+    const docRoots = [
+      path.join(home, "Documents"),
+      process.env.OneDrive && path.join(process.env.OneDrive, "Documents"),
+      process.env.OneDriveCommercial && path.join(process.env.OneDriveCommercial, "Documents"),
+      process.env.OneDriveConsumer && path.join(process.env.OneDriveConsumer, "Documents"),
+    ].filter(Boolean);
+    return docRoots.map((root) => path.join(root, tail));
   }
-  return null; // Live runs only on macOS / Windows
+  return [];
+}
+
+// Live's default Remote Scripts directory: the first candidate whose Ableton
+// User Library already exists, else the first candidate as a sensible default
+// (the manual picker is the ultimate fallback). null on unsupported platforms.
+async function getDefaultRemoteScriptsDir() {
+  const candidates = remoteScriptsCandidates();
+  if (candidates.length === 0) return null;
+  for (const dir of candidates) {
+    if (await exists(path.dirname(dir))) return dir; // User Library is present
+  }
+  return candidates[0];
 }
 
 // Inspect what's installed so the caller can decide whether to prompt.
 export async function getInstallState() {
-  const remoteScriptsDir = getDefaultRemoteScriptsDir();
+  const remoteScriptsDir = await getDefaultRemoteScriptsDir();
   const supported = remoteScriptsDir !== null;
   const destDir = supported ? path.join(remoteScriptsDir, FOLDER_NAME) : null;
 
