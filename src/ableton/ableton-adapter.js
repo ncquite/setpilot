@@ -34,16 +34,32 @@ export class AbletonAdapter {
     return Number(tempo);
   }
 
-  /** Read the arrangement locators as derived songs (with lengths). */
+  /** Read the arrangement locators as derived songs (with lengths). The arrangement
+   *  length bounds the final song, which has no following locator. */
   async getSongs() {
     const flat = await this.osc.request("/live/song/get/cue_points", [], { timeout: 3000 });
-    return deriveSongs(parseCuePoints(flat));
+    let songLength = null;
+    try {
+      const [len] = await this.osc.request("/live/song/get/song_length");
+      songLength = Number(len);
+    } catch {
+      // optional — without it the last song just falls back to no length
+    }
+    return deriveSongs(parseCuePoints(flat), songLength);
   }
 
   /** Current playhead position, in beats. */
   async getCurrentBeat() {
     const [beats] = await this.osc.request("/live/song/get/current_song_time");
     return Number(beats);
+  }
+
+  /** Move Live's playback position to a cue point (locator) by its index. Unlike
+   *  setPosition, this is honoured while stopped — it sets where playback resumes,
+   *  so a following continue() starts at the locator instead of the start marker. */
+  jumpToCue(index) {
+    // cue_point/jump matches int vs str; send an explicit int so it indexes.
+    this.osc.send("/live/song/cue_point/jump", { type: "i", value: index });
   }
 
   // --- Transport --------------------------------------------------------------

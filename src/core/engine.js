@@ -7,6 +7,16 @@ import { EventEmitter } from "node:events";
 import { beatsToSeconds } from "./songs.js";
 
 const TICK_MS = 25; // playhead poll interval for end-detection
+// End-of-song handling: once the playhead is within ~one poll of the fire time we
+// commit the action to a short wall-clock timer, so it lands precisely no matter
+// how the polls fall (pure polling was jittery — a slow poll landed the stop late
+// and the next song's downbeat bled through).
+//
+// Lead = how far ahead of the song boundary to fire. A STOP needs a generous lead
+// so the next song's downbeat never sounds; a SEGUE needs only a small one (just
+// enough that the relocate lands before the boundary, avoiding a double-trigger).
+const END_LEAD_MS = 110; // song ends and stops
+const CONTINUE_LEAD_MS = 40; // song segues into the next
 
 export class SetlistEngine extends EventEmitter {
   /** @param {import("../ableton/ableton-adapter.js").AbletonAdapter} adapter */
@@ -22,7 +32,6 @@ export class SetlistEngine extends EventEmitter {
     this.tempo = 120;
     this._watch = null;
     this._pausedBeat = null;
-    this._playTimer = null;
     this._loopBeat = null; // start beat of the section/song currently vamping, or null
   }
 
@@ -79,26 +88,46 @@ export class SetlistEngine extends EventEmitter {
   /** Cue and play a specific position in the setlist. */
   playPos(pos) {
     if (pos < 0 || pos >= this.setlist.length) return;
-    clearTimeout(this._playTimer);
     this._clearLoop(); // drop any vamp before relocating
-    const beats = this.setlist[pos].timeBeats;
+    const song = this.setlist[pos];
     const wasPlaying = this.status === "playing";
     this.currentPos = pos;
     this._pausedBeat = null;
+    this.status = "playing";
+    this._rollTo(song.timeBeats, song.index, wasPlaying);
 
-    // While rolling, setPosition relocates cleanly either direction. From
-    // stopped, start_playing always jumps to bar 1, so we roll first then drop
-    // onto the locator. (Both verified against Ableton.)
+    this._emit();
+    this._startWatch(song.timeBeats);
+  }
+
+  /**
+   * Start (or relocate) playback at a locator. Live's quirks, established by
+   * testing: a bare position set (current_song_time) is IGNORED while stopped;
+   * start_playing plays from the current playhead; continue_playing resumes from
+   * the last stop point (ignoring the playhead). A cue-point JUMP *does* move the
+   * playhead while stopped. So from a cold stop we jump to the locator, then
+   * start_playing rolls from there — playback never passes through bar 1, so its
+   * content (metronome AND notes) is never sounded. While already rolling, a plain
+   * setPosition relocates cleanly either direction.
+   * @param {number} beats  the locator's timeline position (for relocate-while-rolling)
+   * @param {number} cueIndex  the locator's cue-point index (for the cold-start jump)
+   */
+  _rollTo(beats, cueIndex, wasPlaying) {
     if (wasPlaying) {
       this.adapter.setPosition(beats);
     } else {
+      this.adapter.jumpToCue(cueIndex);
       this.adapter.play();
-      this._playTimer = setTimeout(() => this.adapter.setPosition(beats), 35);
     }
+  }
 
-    this.status = "playing";
-    this._emit();
-    this._startWatch();
+  /** The cue-point index for a beat within the current song — a matching section,
+   *  else the song's own locator. Used to jump to a section from a cold stop. */
+  _cueIndexAt(beats) {
+    const song = this.current;
+    if (!song) return 0;
+    const sec = song.sections.find((s) => Math.abs(s.timeBeats - beats) < 1e-6);
+    return sec ? sec.index : song.index;
   }
 
   /** Start from the top, or resume the cued position. */
@@ -122,19 +151,13 @@ export class SetlistEngine extends EventEmitter {
    */
   playSection(beats) {
     if (this.currentPos < 0) return;
-    clearTimeout(this._playTimer);
     this._clearLoop(); // the watcher re-arms the loop if the target section vamps
     const wasPlaying = this.status === "playing";
     this._pausedBeat = null;
-    if (wasPlaying) {
-      this.adapter.setPosition(beats);
-    } else {
-      this.adapter.play();
-      this._playTimer = setTimeout(() => this.adapter.setPosition(beats), 35);
-    }
     this.status = "playing";
+    this._rollTo(beats, this._cueIndexAt(beats), wasPlaying);
     this._emit();
-    this._startWatch();
+    this._startWatch(beats);
   }
 
   /** Advance to the next song, or stop at the end of the set. */
@@ -167,11 +190,10 @@ export class SetlistEngine extends EventEmitter {
     this.adapter.continue();
     this.status = "playing";
     this._emit();
-    this._startWatch();
+    this._startWatch(this._pausedBeat);
   }
 
   stop() {
-    clearTimeout(this._playTimer);
     this._stopWatch();
     this.adapter.stop();
     this.adapter.backToArrangement(); // always leave Live ready to play normally
@@ -183,7 +205,6 @@ export class SetlistEngine extends EventEmitter {
   /** Hard stop — the on-stage "oh no" button. Stops the transport and hands
    *  control back to the Arrangement so the next PLAY behaves normally. */
   panic() {
-    clearTimeout(this._playTimer);
     this._stopWatch();
     this.adapter.stop();
     this.adapter.backToArrangement(); // recover, never hijack
@@ -197,7 +218,6 @@ export class SetlistEngine extends EventEmitter {
    *  Selection (currentPos) is kept so a reconnect can pick up where we were. */
   onDisconnected() {
     this._stopWatch();
-    clearTimeout(this._playTimer);
     this._pausedBeat = null;
     if (this.status !== "idle") {
       this.status = "idle";
@@ -238,7 +258,9 @@ export class SetlistEngine extends EventEmitter {
     this._loopBeat = null;
   }
 
-  _startWatch() {
+  /** @param {number|null} [fromBeat] where we just jumped the playhead to, so the
+   *  watcher can ignore stale pre-arrival readings before arming end-detection. */
+  _startWatch(fromBeat = null) {
     this._stopWatch();
     const song = this.current;
     if (!song) return;
@@ -246,11 +268,21 @@ export class SetlistEngine extends EventEmitter {
     const endBeat = song.lengthBeats != null ? song.timeBeats + song.lengthBeats : null;
     if (endBeat == null && !hasLoop) return; // last song, nothing to watch for
     const startBeat = song.timeBeats;
-    const token = { cancelled: false };
+    const token = { cancelled: false, endTimer: null };
     this._watch = token;
-    // Only arm end-detection once we've seen the playhead inside this song —
-    // right after a jump the first reading can be stale and would falsely "end".
-    let entered = false;
+    const leadMs = song.continueAtEnd && this.next ? CONTINUE_LEAD_MS : END_LEAD_MS;
+    // The Ableton file decides: continue into the next song, or stop. Idempotent —
+    // goNext/stop cancels this watch, so any second call no-ops on the dead token.
+    const fireEnd = () => {
+      if (token.cancelled) return;
+      if (song.continueAtEnd && this.next) this.goNext();
+      else this.stop();
+    };
+    // Don't trust the playhead until it has actually arrived at the jump target.
+    // Right after a jump getCurrentBeat can still report the OLD position; a stale
+    // reading near the end would otherwise arm a premature stop (the symptom:
+    // re-clicking a song that just auto-stopped played a moment, then stopped).
+    let landed = false;
     let lastRegion = null; // identity of the region we last evaluated for looping
     (async () => {
       while (!token.cancelled) {
@@ -262,6 +294,17 @@ export class SetlistEngine extends EventEmitter {
         }
         if (token.cancelled) break;
 
+        if (!landed) {
+          landed =
+            fromBeat == null
+              ? beat >= startBeat - 0.5 && (endBeat == null || beat < endBeat)
+              : beat >= fromBeat - 0.5 && beat <= fromBeat + 1;
+          if (!landed) {
+            await new Promise((r) => setTimeout(r, TICK_MS));
+            continue; // ignore stale pre-arrival readings
+          }
+        }
+
         // Arm/disarm the loop bracket when the active region changes. While a
         // vamp is armed Live holds the playhead inside it, so the song never ends.
         const region = this._activeSectionAt(song, beat) || song;
@@ -271,13 +314,16 @@ export class SetlistEngine extends EventEmitter {
         }
 
         if (endBeat != null) {
-          if (beat >= startBeat - 0.5 && beat < endBeat) entered = true;
           this.emit("tick", { beat, endBeat, song });
-          if (entered && beat >= endBeat) {
-            // The Ableton file decides: continue into the next song, or stop.
-            if (song.continueAtEnd && this.next) this.goNext();
-            else this.stop();
-            return;
+          // Once within one poll of the fire time (and not vamping — a vamp holds
+          // the playhead, so the song isn't ending), commit to a short timer and
+          // hand off. The short timer lands precisely regardless of poll jitter.
+          if (this._loopBeat == null) {
+            const fireIn = beatsToSeconds(endBeat - beat, this.tempo) * 1000 - leadMs;
+            if (fireIn <= TICK_MS) {
+              token.endTimer = setTimeout(fireEnd, Math.max(0, fireIn));
+              return; // the timer owns the boundary now
+            }
           }
         }
         await new Promise((r) => setTimeout(r, TICK_MS));
@@ -288,6 +334,7 @@ export class SetlistEngine extends EventEmitter {
   _stopWatch() {
     if (this._watch) {
       this._watch.cancelled = true;
+      clearTimeout(this._watch.endTimer);
       this._watch = null;
     }
     this._clearLoop();

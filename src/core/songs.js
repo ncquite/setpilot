@@ -113,9 +113,11 @@ export function parseCuePoints(flat) {
  * locator is ever silently dropped. Excluded locators ([nosong] / "*") are
  * filtered out entirely — they list nothing and don't bound any length.
  * @param {CuePoint[]} cues
+ * @param {number|null} [songLength]  Arrangement length, used to bound the final
+ *   song (which has no following locator) so it still gets a length/playhead.
  * @returns {Song[]}
  */
-export function deriveSongs(cues) {
+export function deriveSongs(cues, songLength = null) {
   const byTime = [...cues].sort((a, b) => a.timeBeats - b.timeBeats);
   const songs = [];
   let current = null;
@@ -149,6 +151,12 @@ export function deriveSongs(cues) {
   for (let i = 0; i < songs.length; i++) {
     const next = songs[i + 1];
     songs[i].lengthBeats = next ? next.timeBeats - songs[i].timeBeats : null;
+  }
+  // The last song has no following locator to bound it — fall back to the
+  // arrangement length so it still gets a playhead, timing, and a defined end.
+  const last = songs[songs.length - 1];
+  if (last && last.lengthBeats == null && songLength != null && songLength > last.timeBeats) {
+    last.lengthBeats = songLength - last.timeBeats;
   }
   // Section length: gap to the next section in the same song, else the song end.
   for (const song of songs) {
