@@ -43,13 +43,19 @@ Ableton Live  ◄──OSC──►  SetPilot (Node)  ◄──LAN──►  pho
 
 ## Features
 
-- **Reorderable setlist** — drag your songs into any performance order; the audio
-  in your Arrangement never moves. Save, load, and export setlists.
+- **Clean performance view** — the main window shows only what you need on stage:
+  now-playing with a playhead, the set list (tap a song to jump to it), and the
+  transport. The now-playing card holds a fixed height and the set list scrolls on
+  its own, so nothing jumps around as you move through the set.
+- **Edit mode** — hit the pencil to open the set-list editor: drag songs into any
+  performance order, add or remove them, and save / load / delete named set lists.
+  The audio in your Arrangement never moves.
 - **Song sections** — mark verses/choruses/solos with `>` locators and jump
   between them live (tap, or `[` / `]`).
 - **Behaviour set in the file** — flag a song to segue into the next or stop and
   wait; vamp (loop) an intro or outro until you move on. No per-song toggles in
-  the app — your Ableton set is the source of truth.
+  the app — your Ableton set is the source of truth. While a song or section is
+  vamping, a big **Exit Loop** button appears so you can break out with one tap.
 - **Phone / tablet remote** — any device on your network becomes a full remote
   (toggle it on with the Wi-Fi button); no extra apps.
 - **MIDI / footswitch control** — learn-to-assign a controller to Go, Stop, Next,
@@ -89,7 +95,7 @@ Name your Locators like this:
 | `Sweet Dreams` | A song. |
 | `> Verse`, `> Chorus` | A **section** inside the song above it. Tap it in the app (or `[` / `]`) to jump there mid-song. |
 | `+CONTINUE` *(or `+SEGUE`)* | At the end of this song, roll straight into the next one. **Default is to stop** and wait for you. |
-| `+LOOP` | **Vamp** this song or section — it holds, looping, until you move on. Great for an intro pad or a stretched outro. Tap the pulsing section chip (or Next / another section) to break out and play on. |
+| `+LOOP` | **Vamp** this song or section — it holds, looping, until you move on. Great for an intro pad or a stretched outro. Hit the **Exit Loop** button (or Next / another section) to break out and play on. |
 | `[nosong]` or a leading `*` | Not a song — hide this Locator from the lists (tuning marks, automation notes, etc.). |
 
 Example: `Outro +LOOP +CONTINUE` vamps the outro until you advance, then segues
@@ -142,7 +148,7 @@ configure.
 - [x] Core engine: setlist model, ordered queue, auto-advance, save/load
 - [x] Web remote: set list + songs, reorder, transport, panic
 - [x] Live locator auto-sync (add/remove/move on the fly)
-- [x] Electron standalone window, auto-reconnect, export set list to text
+- [x] Electron standalone window, auto-reconnect, edit-mode set list management (save/load/delete)
 - [x] Song sections, per-song continue/stop + section looping, non-song markers
 - [x] MIDI control — learn-to-assign a footswitch/controller to transport functions
 - [x] Packaged builds for macOS (.dmg/.zip) and Windows (NSIS installer)
