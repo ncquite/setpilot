@@ -197,11 +197,12 @@ async function handleCommand(ws, msg) {
       break;
     case "save":
       await saveSetlist(payload.name, engine.setlist);
-      ws.send(JSON.stringify({ type: "setlists", names: await listSetlists() }));
+      ws.send(JSON.stringify({ type: "setlistSaved", name: payload.name, names: await listSetlists() }));
       break;
     case "load": {
       const { resolved, missing } = await loadSetlist(payload.name, engine.songs);
       engine.setOrder(resolved.map((s) => s.index));
+      ws.send(JSON.stringify({ type: "setlistLoaded", name: payload.name }));
       if (missing.length) ws.send(JSON.stringify({ type: "warning", message: `Missing in Live: ${missing.join(", ")}` }));
       break;
     }

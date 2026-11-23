@@ -356,7 +356,7 @@ body.editor-open .editor { display: block; animation: editor-in 0.2s ease; }
 .editor #library { max-height: 300px; } /* keep search results beside the search box */
 @keyframes editor-in { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
 
-.actions { display: flex; gap: 8px; margin-top: 12px; align-items: stretch; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: stretch; }
 .actions button, .select-wrap {
   font: 600 13px/1 var(--ui);
   background: var(--card-2); color: var(--text);

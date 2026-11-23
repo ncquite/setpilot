@@ -9,6 +9,7 @@ const $ = (id) => document.getElementById(id);
 
 let ws;
 let snapshot = null;
+let currentSetlistName = null;
 let abletonConnected = false;
 let progress = 0;
 let dragging = false; // true while a set-list row is being dragged
@@ -68,6 +69,15 @@ function handle(msg) {
       break;
     case "setlists":
       fillSetlists(msg.names);
+      break;
+    case "setlistSaved":
+      currentSetlistName = msg.name;
+      fillSetlists(msg.names);
+      toast(`Saved “${msg.name}”`);
+      break;
+    case "setlistLoaded":
+      currentSetlistName = msg.name;
+      $("load-select").value = msg.name;
       break;
     case "warning":
       toast(msg.message);
@@ -347,8 +357,9 @@ function add(index) {
 // ---- Saved set lists ----
 function fillSetlists(names) {
   const sel = $("load-select");
-  sel.innerHTML = `<option value="">Load Setlist...</option>` +
-    names.map((n) => `<option value="${n}">${n}</option>`).join("");
+  if (currentSetlistName && !names.includes(currentSetlistName)) currentSetlistName = null;
+  sel.replaceChildren(new Option("Load Setlist...", ""), ...names.map((n) => new Option(n, n)));
+  sel.value = currentSetlistName || "";
 }
 
 // ---- Toast ----
@@ -406,19 +417,24 @@ const confirmDelete = (name) =>
   });
 
 // ---- Controls ----
+$("play").onclick = () => send("play");
 $("stop").onclick = () => send("stop");
 $("panic").onclick = () => send("panic");
 $("exit-loop").onclick = () => send("releaseLoop");
 $("remote-btn").onclick = () => send("setRemote", { on: !remoteEnabled });
 $("search").oninput = renderLibrary;
 
-$("save").onclick = async () => {
-  const name = await askName();
+async function saveAs() {
+  const name = await askName(currentSetlistName || "");
   if (name) {
     send("save", { name });
-    toast(`Saved “${name}”`);
   }
+}
+$("save").onclick = () => {
+  if (currentSetlistName) send("save", { name: currentSetlistName });
+  else return saveAs();
 };
+$("save-as").onclick = saveAs;
 $("load-select").onchange = (e) => {
   if (e.target.value) send("load", { name: e.target.value });
 };
