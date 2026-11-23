@@ -3,7 +3,15 @@
 // window (.settings). Overlays (.toast, .modal-backdrop) are position:fixed, so
 // the in-flow container is the true content height.
 
-const { ipcRenderer } = require("electron");
+const { ipcRenderer, contextBridge } = require("electron");
+
+contextBridge.exposeInMainWorld("setpilotPreferences", {
+  getDirectory: () => ipcRenderer.invoke("preferences:get"),
+  saveDirectory: (directory) => ipcRenderer.invoke("preferences:save", directory),
+});
+ipcRenderer.on("setlists-directory-changed", () => {
+  window.dispatchEvent(new Event("setlists-directory-changed"));
+});
 
 const SELECTOR = ".app, .settings";
 

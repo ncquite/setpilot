@@ -78,6 +78,7 @@ function handle(msg) {
     case "setlistLoaded":
       currentSetlistName = msg.name;
       $("load-select").value = msg.name;
+      renderSetlistTitle();
       break;
     case "warning":
       toast(msg.message);
@@ -355,11 +356,16 @@ function add(index) {
 }
 
 // ---- Saved set lists ----
+function renderSetlistTitle() {
+  $("setlist-title").textContent = `Setlist: ${currentSetlistName || "-"}`;
+}
+
 function fillSetlists(names) {
   const sel = $("load-select");
   if (currentSetlistName && !names.includes(currentSetlistName)) currentSetlistName = null;
   sel.replaceChildren(new Option("Load Setlist...", ""), ...names.map((n) => new Option(n, n)));
   sel.value = currentSetlistName || "";
+  renderSetlistTitle();
 }
 
 // ---- Toast ----
@@ -417,6 +423,10 @@ const confirmDelete = (name) =>
   });
 
 // ---- Controls ----
+window.addEventListener("setlists-directory-changed", () => {
+  currentSetlistName = null;
+  send("listSetlists");
+});
 $("play").onclick = () => send("play");
 $("stop").onclick = () => send("stop");
 $("panic").onclick = () => send("panic");

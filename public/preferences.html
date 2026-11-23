@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SetPilot — Preferences</title>
+<link rel="stylesheet" href="/style.css">
+<div class="settings">
+  <header class="settings-head"><h1>Preferences</h1></header>
+  <section class="card">
+    <form id="preferences-form">
+      <label for="setlists-directory">Setlist folder</label>
+      <div class="search-wrap"><input id="setlists-directory" required autocomplete="off" spellcheck="false" placeholder="Absolute folder path"></div>
+      <p class="muted">Existing setlists stay in their original folder. Copy them to the new folder if needed.</p>
+      <div class="actions"><button id="save-preferences" type="submit">Save</button></div>
+      <p id="preferences-status" role="status" aria-live="polite"></p>
+    </form>
+  </section>
+</div>
+<script type="module" src="/preferences.js"></script>
+</html>

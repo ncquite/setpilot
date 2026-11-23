@@ -7,12 +7,22 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+let customSetlistsDirectory = null;
+
+export function setSetlistsDirectory(directory) {
+  customSetlistsDirectory = directory;
+}
+
+export function getSetlistsDirectory() {
+  return setlistsDir();
+}
 
 // Where saved setlists live. The Electron shell sets SETPILOT_DATA_DIR to a
 // writable per-user location (app.getPath("userData")) — required because the
 // packaged app's own files live inside a read-only asar archive. Plain
 // `npm start` dev runs fall back to the repo's setlists/ folder.
 function setlistsDir() {
+  if (customSetlistsDirectory) return customSetlistsDirectory;
   return process.env.SETPILOT_DATA_DIR
     ? join(process.env.SETPILOT_DATA_DIR, "setlists")
     : join(HERE, "..", "..", "setlists");

@@ -8,12 +8,56 @@ import { app, BrowserWindow, Menu, dialog, ipcMain, screen, shell, session } fro
 import { fileURLToPath } from "node:url";
 import { startServer } from "../src/server.js";
 import { promptAndInstall } from "./install-remote-script.js";
+import { readFile, writeFile, mkdir, mkdtemp, rmdir, rename } from "node:fs/promises";
+import { join, isAbsolute } from "node:path";
+import { getSetlistsDirectory, setSetlistsDirectory } from "../src/core/store.js";
 
 const preloadPath = fileURLToPath(new URL("preload.cjs", import.meta.url));
 
 let win;
 let midiWin = null;
+let preferencesWin = null;
 let serverUrl = null; // base URL of the in-process server, set on boot
+
+function openPreferences() {
+  if (preferencesWin && !preferencesWin.isDestroyed()) return preferencesWin.focus();
+  preferencesWin = new BrowserWindow({
+    width: 600, height: 340, minWidth: 460, parent: win,
+    title: "SetPilot — Preferences", backgroundColor: "#0e0e11",
+    webPreferences: { contextIsolation: true, nodeIntegration: false, preload: preloadPath },
+  });
+  preferencesWin.setMenuBarVisibility(false);
+  preferencesWin.loadURL(`${serverUrl}/preferences.html`);
+  preferencesWin.on("closed", () => { preferencesWin = null; });
+}
+
+function checkPreferencesSender(event) {
+  if (!preferencesWin || event.sender !== preferencesWin.webContents ||
+      event.senderFrame !== preferencesWin.webContents.mainFrame ||
+      event.senderFrame.url !== `${serverUrl}/preferences.html`) {
+    throw new Error("Preferences are only available in the preferences window.");
+  }
+}
+ipcMain.handle("preferences:get", (event) => {
+  checkPreferencesSender(event);
+  return getSetlistsDirectory();
+});
+ipcMain.handle("preferences:save", async (event, directory) => {
+  checkPreferencesSender(event);
+  if (typeof directory !== "string" || !isAbsolute(directory.trim())) {
+    throw new Error("Please enter an absolute folder path.");
+  }
+  directory = directory.trim();
+  await mkdir(directory, { recursive: true });
+  const probe = await mkdtemp(join(directory, ".setpilot-check-"));
+  await rmdir(probe);
+  const settingsPath = join(app.getPath("userData"), "preferences.json");
+  await writeFile(`${settingsPath}.tmp`, JSON.stringify({ setlistsDirectory: directory }, null, 2), "utf8");
+  await rename(`${settingsPath}.tmp`, settingsPath);
+  setSetlistsDirectory(directory);
+  win?.webContents.send("setlists-directory-changed");
+  return directory;
+});
 
 // Open (or focus) the MIDI Control settings window — a normal resizable window,
 // separate from the tall performance window so it doesn't clutter it.
@@ -113,6 +157,14 @@ function buildMenu() {
     ...(isMac ? [] : [{ role: "help", submenu: [midiItem, installItem, about] }]),
   ];
 
+  // Extend Electron's standard Edit menu to retain native editing shortcuts.
+  const editIndex = template.findIndex((item) => item.role === "editMenu");
+  const standardEdit = Menu.buildFromTemplate([{ role: "editMenu" }]).items[0].submenu;
+  template[editIndex] = {
+    label: "Edit",
+    submenu: [...standardEdit.items, { type: "separator" }, { label: "Preferences", click: openPreferences }],
+  };
+
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
@@ -121,6 +173,14 @@ async function createWindow() {
   // in a read-only asar, so point the store at the per-user data dir before the
   // server (and its setlist store) boots. store.js reads this env var.
   process.env.SETPILOT_DATA_DIR = app.getPath("userData");
+  try {
+    const settings = JSON.parse(await readFile(join(app.getPath("userData"), "preferences.json"), "utf8"));
+    if (typeof settings.setlistsDirectory === "string" && isAbsolute(settings.setlistsDirectory)) {
+      setSetlistsDirectory(settings.setlistsDirectory);
+    }
+  } catch (err) {
+    if (err.code !== "ENOENT") console.error("Could not read preferences:", err.message);
+  }
 
   const { url } = await startServer();
   serverUrl = url; // used to open the MIDI Control window
